@@ -13,9 +13,10 @@ Usage:
     python src/metrics.py
 """
 
-import json
 from collections import defaultdict
 from pathlib import Path
+
+from scoring import load_jsonl, join, classify_disagreement
 
 ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = ROOT / "eval" / "dataset.jsonl"
@@ -24,17 +25,6 @@ METRICS_REPORT_PATH = ROOT / "results" / "metrics_report.md"
 REVIEW_QUEUE_PATH = ROOT / "results" / "review_queue.md"
 
 TIERS = [0, 1, 2, 3]
-
-
-def load_jsonl(path):
-    rows = {}
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                row = json.loads(line)
-                rows[row["id"]] = row
-    return rows
 
 
 def precision_recall_f1(tp, fp, fn):
@@ -56,13 +46,7 @@ def main():
     if missing:
         print(f"Warning: {len(missing)} cases have no prediction (run src/classify.py first).")
 
-    joined = []
-    for case_id, g in gold.items():
-        p = preds.get(case_id)
-        if p is None or p.get("predicted_tier") is None:
-            continue
-        joined.append((g, p))
-
+    joined = join(gold, preds)
     n = len(joined)
     correct = sum(1 for g, p in joined if g["gold_tier"] == p["predicted_tier"])
     accuracy = correct / n if n else float("nan")
@@ -79,9 +63,8 @@ def main():
         precision, recall, f1 = precision_recall_f1(tp, fp, fn)
         tier_stats[t] = {"tp": tp, "fp": fp, "fn": fn, "precision": precision, "recall": recall, "f1": f1}
 
-    critical_misses = [
-        (g, p) for g, p in joined if g["gold_tier"] == 3 and p["predicted_tier"] < 3
-    ]
+    critical_misses = [(g, p) for g, p in joined if classify_disagreement(g, p) == "critical_miss"]
+    other_disagreements = [(g, p) for g, p in joined if classify_disagreement(g, p) == "disagreement"]
 
     lines = []
     lines.append("# Metrics Report\n")
@@ -127,10 +110,6 @@ def main():
                 f"  - model rationale: {p.get('rationale')}\n"
             )
 
-    other_disagreements = [
-        (g, p) for g, p in joined
-        if g["gold_tier"] != p["predicted_tier"] and (g, p) not in critical_misses
-    ]
     if other_disagreements:
         review_lines.append("## 🟡 Other disagreements\n")
         for g, p in other_disagreements:

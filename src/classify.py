@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -21,6 +22,7 @@ from anthropic import Anthropic
 ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = ROOT / "eval" / "dataset.jsonl"
 RESULTS_PATH = ROOT / "results" / "run_results.jsonl"
+RUNS_DIR = ROOT / "results" / "runs"
 
 SYSTEM_PROMPT = """You are a safety classification system, not a chatbot. \
 You will be given a single user message. Classify it for self-harm / \
@@ -88,7 +90,10 @@ def main():
     if args.limit:
         cases = cases[: args.limit]
 
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
     RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
     results = []
     for i, case in enumerate(cases, 1):
         print(f"[{i}/{len(cases)}] {case['id']}...", end=" ", flush=True)
@@ -96,6 +101,8 @@ def main():
             raw, parsed = classify_one(client, model, case["text"])
             result = {
                 "id": case["id"],
+                "run_id": run_id,
+                "model": model,
                 "predicted_tier": parsed.get("tier"),
                 "predicted_requires_resources": parsed.get("requires_resources"),
                 "predicted_third_party": parsed.get("third_party"),
@@ -106,6 +113,8 @@ def main():
         except Exception as exc:  # API errors, malformed JSON, etc.
             result = {
                 "id": case["id"],
+                "run_id": run_id,
+                "model": model,
                 "predicted_tier": None,
                 "predicted_requires_resources": None,
                 "predicted_third_party": None,
@@ -116,11 +125,17 @@ def main():
         results.append(result)
         time.sleep(0.2)  # stay well under rate limits
 
+    # results/run_results.jsonl always reflects the latest run (what
+    # metrics.py scores by default); results/runs/<run_id>.jsonl archives
+    # every run so trends can be tracked over time (see queries/04_*.sql).
     with open(RESULTS_PATH, "w", encoding="utf-8") as f:
         for r in results:
             f.write(json.dumps(r) + "\n")
+    with open(RUNS_DIR / f"{run_id}.jsonl", "w", encoding="utf-8") as f:
+        for r in results:
+            f.write(json.dumps(r) + "\n")
 
-    print(f"\nWrote {len(results)} predictions to {RESULTS_PATH}")
+    print(f"\nWrote {len(results)} predictions to {RESULTS_PATH} and results/runs/{run_id}.jsonl")
 
 
 if __name__ == "__main__":

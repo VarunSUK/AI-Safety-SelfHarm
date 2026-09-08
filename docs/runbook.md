@@ -7,11 +7,19 @@ pip install -r requirements.txt
 cp .env.example .env   # fill in ANTHROPIC_API_KEY
 python src/classify.py
 python src/metrics.py
+python src/load_db.py   # builds results/eval.db for SQL analysis (see docs/sql_analysis.md)
+python src/qa_review.py # two-reviewer QA pass over the review queue
 ```
 
-This produces `results/run_results.jsonl` (raw predictions),
-`results/metrics_report.md` (tier-level precision/recall/F1 + confusion
-matrix), and `results/review_queue.md` (everything a human should look at).
+`classify.py` produces `results/run_results.jsonl` (latest run) and archives
+the same run to `results/runs/<run_id>.jsonl` for trend tracking.
+`metrics.py` produces `results/metrics_report.md` (tier-level
+precision/recall/F1 + confusion matrix) and `results/review_queue.md`
+(everything a human should look at). `load_db.py` loads all of the above
+into `results/eval.db` so it can be queried directly — see
+[`docs/sql_analysis.md`](sql_analysis.md) and `queries/*.sql`. `qa_review.py`
+runs a second, independent reviewer pass over the pending queue and
+auto-resolves items the two reviewers agree on, escalating the rest.
 
 ## How to read the results, in priority order
 
@@ -52,13 +60,12 @@ model gap.
 
 ## Regression tracking
 
-Every run overwrites `results/run_results.jsonl` and the two report files.
-To track a metric over time (e.g. across model versions or after adding new
-eval cases), commit the reports at the timestamp they were generated —
-`results/metrics_report.md`'s accuracy and tier-3 recall numbers are the two
-to diff between runs. A drop in tier-3 recall between two committed reports
-is the signal that should trigger the escalation in the section above,
-regardless of what overall accuracy did.
+Every run overwrites `results/run_results.jsonl` and the two report files,
+but also archives to `results/runs/<run_id>.jsonl`, which is never
+overwritten. After `load_db.py`, `queries/04_metric_trend_over_runs.sql`
+gives tier-3 recall across every archived run in one query — that's the
+number to watch between runs, ahead of overall accuracy, per the priority
+order above.
 
 ## Escalation
 
