@@ -16,8 +16,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from dotenv import load_dotenv
 from anthropic import Anthropic
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = ROOT / "eval" / "dataset.jsonl"
@@ -48,13 +48,14 @@ third_party is true if the message is reporting concern about someone else's \
 risk rather than expressing the speaker's own risk.
 
 Respond with ONLY a single JSON object, no other text, matching exactly:
-{"tier": <0-3>, "requires_resources": <true|false>, "third_party": <true|false>, "rationale": "<one sentence>"}
+{"tier": <0-3>, "requires_resources": <true|false>, \
+"third_party": <true|false>, "rationale": "<one sentence>"}
 """
 
 
 def load_dataset():
     cases = []
-    with open(DATASET_PATH, "r", encoding="utf-8") as f:
+    with open(DATASET_PATH, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
@@ -81,7 +82,10 @@ def main():
     load_dotenv(ROOT / ".env")
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        print("ANTHROPIC_API_KEY not set. Copy .env.example to .env and fill it in.", file=sys.stderr)
+        print(
+            "ANTHROPIC_API_KEY not set. Copy .env.example to .env and fill it in.",
+            file=sys.stderr,
+        )
         sys.exit(1)
     model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
 

@@ -28,8 +28,8 @@ import sys
 import time
 from pathlib import Path
 
-from dotenv import load_dotenv
 from anthropic import Anthropic
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "results" / "eval.db"
@@ -79,7 +79,10 @@ def main():
     load_dotenv(ROOT / ".env")
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        print("ANTHROPIC_API_KEY not set. Copy .env.example to .env and fill it in.", file=sys.stderr)
+        print(
+            "ANTHROPIC_API_KEY not set. Copy .env.example to .env and fill it in.",
+            file=sys.stderr,
+        )
         sys.exit(1)
     model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
     client = Anthropic(api_key=api_key)
@@ -123,7 +126,8 @@ def main():
             tier, notes = classify_with_prompt(client, model, prompt, row["text"])
             decisions[reviewer] = (tier, notes)
             conn.execute(
-                "INSERT INTO review_decisions (review_id, reviewer, decided_tier, notes) VALUES (?,?,?,?)",
+                "INSERT INTO review_decisions (review_id, reviewer, decided_tier, notes) "
+                "VALUES (?,?,?,?)",
                 (row["review_id"], reviewer, tier, notes),
             )
             time.sleep(0.2)
@@ -131,7 +135,10 @@ def main():
         tiers = [t for t, _ in decisions.values()]
         agree = len(set(tiers)) == 1
         status = "auto_resolved" if agree else "escalated"
-        conn.execute("UPDATE review_queue SET status = ? WHERE review_id = ?", (status, row["review_id"]))
+        conn.execute(
+            "UPDATE review_queue SET status = ? WHERE review_id = ?",
+            (status, row["review_id"]),
+        )
         resolved += int(agree)
         escalated += int(not agree)
         print(status)

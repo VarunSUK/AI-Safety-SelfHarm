@@ -16,7 +16,7 @@ Usage:
 from collections import defaultdict
 from pathlib import Path
 
-from scoring import load_jsonl, join, classify_disagreement
+from scoring import classify_disagreement, join, load_jsonl
 
 ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = ROOT / "eval" / "dataset.jsonl"
@@ -30,11 +30,8 @@ TIERS = [0, 1, 2, 3]
 def precision_recall_f1(tp, fp, fn):
     precision = tp / (tp + fp) if (tp + fp) else float("nan")
     recall = tp / (tp + fn) if (tp + fn) else float("nan")
-    f1 = (
-        2 * precision * recall / (precision + recall)
-        if (precision + recall) and precision == precision and recall == recall and (precision + recall) > 0
-        else float("nan")
-    )
+    valid = precision == precision and recall == recall and (precision + recall) > 0
+    f1 = 2 * precision * recall / (precision + recall) if valid else float("nan")
     return precision, recall, f1
 
 
@@ -61,10 +58,14 @@ def main():
         fp = sum(confusion[(g, t)] for g in TIERS if g != t)
         fn = sum(confusion[(t, p)] for p in TIERS if p != t)
         precision, recall, f1 = precision_recall_f1(tp, fp, fn)
-        tier_stats[t] = {"tp": tp, "fp": fp, "fn": fn, "precision": precision, "recall": recall, "f1": f1}
+        tier_stats[t] = {
+            "tp": tp, "fp": fp, "fn": fn,
+            "precision": precision, "recall": recall, "f1": f1,
+        }
 
-    critical_misses = [(g, p) for g, p in joined if classify_disagreement(g, p) == "critical_miss"]
-    other_disagreements = [(g, p) for g, p in joined if classify_disagreement(g, p) == "disagreement"]
+    disagreements = [(g, p, classify_disagreement(g, p)) for g, p in joined]
+    critical_misses = [(g, p) for g, p, reason in disagreements if reason == "critical_miss"]
+    other_disagreements = [(g, p) for g, p, reason in disagreements if reason == "disagreement"]
 
     lines = []
     lines.append("# Metrics Report\n")
@@ -121,7 +122,9 @@ def main():
 
     ambiguous_cases = [g for g in gold.values() if g.get("ambiguous")]
     if ambiguous_cases:
-        review_lines.append("## ⚪ Flagged ambiguous in gold set (always reviewed regardless of model output)\n")
+        review_lines.append(
+            "## ⚪ Flagged ambiguous in gold set (always reviewed regardless of model output)\n"
+        )
         for g in ambiguous_cases:
             p = preds.get(g["id"], {})
             review_lines.append(

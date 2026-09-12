@@ -18,7 +18,7 @@ Usage:
 import sqlite3
 from pathlib import Path
 
-from scoring import load_jsonl, join, classify_disagreement
+from scoring import classify_disagreement, join, load_jsonl
 
 ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = ROOT / "eval" / "dataset.jsonl"
@@ -124,7 +124,8 @@ def main():
         reason = classify_disagreement(g, p)
         if reason:
             conn.execute(
-                "INSERT INTO review_queue (run_id, case_id, reason, status) VALUES (?,?,?,'pending')",
+                "INSERT INTO review_queue (run_id, case_id, reason, status) "
+                "VALUES (?,?,?,'pending')",
                 (latest_run_id, g["id"], reason),
             )
     for g in gold.values():
@@ -135,7 +136,8 @@ def main():
             ).fetchone()
             if not already_queued:
                 conn.execute(
-                    "INSERT INTO review_queue (run_id, case_id, reason, status) VALUES (?,?,?,'pending')",
+                    "INSERT INTO review_queue (run_id, case_id, reason, status) "
+                "VALUES (?,?,?,'pending')",
                     (latest_run_id, g["id"], "ambiguous_gold_label"),
                 )
 

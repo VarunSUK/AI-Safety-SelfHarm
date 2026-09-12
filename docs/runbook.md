@@ -3,12 +3,13 @@
 ## Running a full eval pass
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[dev,dashboard]"
 cp .env.example .env   # fill in ANTHROPIC_API_KEY
 python src/classify.py
 python src/metrics.py
 python src/load_db.py   # builds results/eval.db for SQL analysis (see docs/sql_analysis.md)
 python src/qa_review.py # two-reviewer QA pass over the review queue
+streamlit run dashboard/app.py  # optional: interactive view over eval.db
 ```
 
 `classify.py` produces `results/run_results.jsonl` (latest run) and archives
