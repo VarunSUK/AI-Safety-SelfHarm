@@ -1,16 +1,18 @@
 """
-Streamlit dashboard over results/eval.db.
+Streamlit dashboard over results/<suite>/eval.db.
 
 Everything here is a thin read layer on top of the tables src/load_db.py
 builds — no logic lives here that isn't already in src/scoring.py or the
 queries/*.sql files; the dashboard exists to make those numbers explorable
-without writing SQL by hand each time.
+without writing SQL by hand each time. Works across every eval suite
+registered in src/suites.py, not just self-harm.
 
 Usage:
     streamlit run dashboard/app.py
 """
 
 import sqlite3
+import sys
 from pathlib import Path
 
 import altair as alt
@@ -18,21 +20,29 @@ import pandas as pd
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / "results" / "eval.db"
+sys.path.insert(0, str(ROOT / "src"))
+from suites import SUITES  # noqa: E402
 
-st.set_page_config(page_title="Self-Harm Eval Dashboard", layout="wide")
-st.title("Self-Harm Risk Evaluation — Dashboard")
+st.set_page_config(page_title="AI Safety Eval Dashboard", layout="wide")
+st.title("AI Safety Evaluation — Dashboard")
 st.caption(
-    "Read-only view over results/eval.db. Run `python src/classify.py`, "
-    "`python src/load_db.py`, and optionally `python src/qa_review.py` to populate it."
+    "Read-only view over results/<suite>/eval.db. Run `python src/classify.py --suite ...`, "
+    "`python src/load_db.py --suite ...`, and optionally `python src/qa_review.py --suite ...` "
+    "to populate it."
 )
+
+suite_name = st.selectbox(
+    "Suite", list(SUITES), format_func=lambda name: SUITES[name]["label"]
+)
+suite = SUITES[suite_name]
+DB_PATH = suite["results_dir"] / "eval.db"
 
 if not DB_PATH.exists():
     st.warning(
-        "No results/eval.db found yet. From the project root, run:\n\n"
+        f"No {DB_PATH.relative_to(ROOT)} found yet. From the project root, run:\n\n"
         "```bash\n"
-        "python src/classify.py\n"
-        "python src/load_db.py\n"
+        f"python src/classify.py --suite {suite_name}\n"
+        f"python src/load_db.py --suite {suite_name}\n"
         "```"
     )
     st.stop()
@@ -42,7 +52,8 @@ conn = sqlite3.connect(DB_PATH)
 runs = pd.read_sql("SELECT run_id, model FROM runs ORDER BY run_id DESC", conn)
 if runs.empty:
     st.warning(
-        "results/eval.db exists but has no runs yet. Run src/classify.py, then src/load_db.py."
+        f"{DB_PATH.relative_to(ROOT)} exists but has no runs yet. "
+        f"Run src/classify.py --suite {suite_name}, then src/load_db.py --suite {suite_name}."
     )
     st.stop()
 

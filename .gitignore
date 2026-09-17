@@ -6,4 +6,4 @@ venv/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
-results/eval.db
+results/*/eval.db

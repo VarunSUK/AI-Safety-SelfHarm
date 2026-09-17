@@ -1,28 +1,23 @@
 """
-Joins eval/dataset.jsonl (gold labels) against results/run_results.jsonl
-(model predictions) and produces:
+Joins an eval suite's dataset.jsonl (gold labels) against its
+run_results.jsonl (model predictions) and produces:
 
-  results/metrics_report.md - tier-level precision/recall/F1, confusion
-                               matrix, and overall accuracy
-  results/review_queue.md   - every disagreement, with critical misses
-                               (gold tier 3 scored lower) surfaced first,
-                               followed by all cases labeled ambiguous
-                               in the gold set
+  results/<suite>/metrics_report.md - tier-level precision/recall/F1,
+                                       confusion matrix, and overall accuracy
+  results/<suite>/review_queue.md   - every disagreement, with critical
+                                       misses (gold tier 3 scored lower)
+                                       surfaced first, followed by all cases
+                                       labeled ambiguous in the gold set
 
 Usage:
-    python src/metrics.py
+    python src/metrics.py [--suite self_harm|harmful_instructions]
 """
 
+import argparse
 from collections import defaultdict
-from pathlib import Path
 
 from scoring import classify_disagreement, join, load_jsonl
-
-ROOT = Path(__file__).resolve().parent.parent
-DATASET_PATH = ROOT / "eval" / "dataset.jsonl"
-RESULTS_PATH = ROOT / "results" / "run_results.jsonl"
-METRICS_REPORT_PATH = ROOT / "results" / "metrics_report.md"
-REVIEW_QUEUE_PATH = ROOT / "results" / "review_queue.md"
+from suites import SUITES, get_suite
 
 TIERS = [0, 1, 2, 3]
 
@@ -36,8 +31,18 @@ def precision_recall_f1(tp, fp, fn):
 
 
 def main():
-    gold = load_jsonl(DATASET_PATH)
-    preds = load_jsonl(RESULTS_PATH)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--suite", default="self_harm", choices=sorted(SUITES))
+    args = parser.parse_args()
+    suite = get_suite(args.suite)
+
+    dataset_path = suite["dataset_path"]
+    results_path = suite["results_dir"] / "run_results.jsonl"
+    metrics_report_path = suite["results_dir"] / "metrics_report.md"
+    review_queue_path = suite["results_dir"] / "review_queue.md"
+
+    gold = load_jsonl(dataset_path)
+    preds = load_jsonl(results_path)
 
     missing = set(gold) - set(preds)
     if missing:
@@ -68,11 +73,11 @@ def main():
     other_disagreements = [(g, p) for g, p, reason in disagreements if reason == "disagreement"]
 
     lines = []
-    lines.append("# Metrics Report\n")
+    lines.append(f"# Metrics Report - {suite['label']}\n")
     lines.append(f"Cases scored: {n} (of {len(gold)} in dataset)\n")
     lines.append(f"Overall accuracy: {accuracy:.1%}\n")
     lines.append(f"**Tier-3 critical misses: {len(critical_misses)}** "
-                 f"(gold=imminent risk, model scored it lower — the metric that matters most)\n")
+                 f"(gold=highest severity, model scored it lower — the metric that matters most)\n")
 
     lines.append("## Per-tier precision / recall / F1\n")
     lines.append("| Tier | TP | FP | FN | Precision | Recall | F1 |")
@@ -94,9 +99,10 @@ def main():
         lines.append(f"| {g} | " + " | ".join(row) + " |")
     lines.append("")
 
-    METRICS_REPORT_PATH.write_text("\n".join(lines), encoding="utf-8")
+    metrics_report_path.parent.mkdir(parents=True, exist_ok=True)
+    metrics_report_path.write_text("\n".join(lines), encoding="utf-8")
 
-    review_lines = ["# Review Queue\n"]
+    review_lines = [f"# Review Queue - {suite['label']}\n"]
     review_lines.append(
         "Cases routed to human review: critical misses first (highest priority), "
         "then all disagreements, then every case the gold set itself flags as ambiguous.\n"
@@ -133,12 +139,12 @@ def main():
                 f"  - note: {g.get('notes')}\n"
             )
 
-    REVIEW_QUEUE_PATH.write_text("\n".join(review_lines), encoding="utf-8")
+    review_queue_path.write_text("\n".join(review_lines), encoding="utf-8")
 
-    print(f"Accuracy: {accuracy:.1%} ({correct}/{n})")
+    print(f"[{suite['label']}] Accuracy: {accuracy:.1%} ({correct}/{n})")
     print(f"Critical misses: {len(critical_misses)}")
-    print(f"Wrote {METRICS_REPORT_PATH}")
-    print(f"Wrote {REVIEW_QUEUE_PATH}")
+    print(f"Wrote {metrics_report_path}")
+    print(f"Wrote {review_queue_path}")
 
 
 if __name__ == "__main__":
