@@ -23,6 +23,44 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 from suites import SUITES  # noqa: E402
 
+# Raw column/value names come straight from the database (Python/SQL
+# convention). These maps translate them to plain labels wherever they're
+# actually shown on screen, so a non-technical viewer sees "AI's tier" and
+# "Critical miss" instead of "predicted_tier" and "critical_miss".
+COLUMN_LABELS = {
+    "id": "Case ID",
+    "case_id": "Case ID",
+    "text": "Message",
+    "gold_tier": "Correct tier",
+    "predicted_tier": "AI's tier",
+    "rationale": "AI's reasoning",
+    "review_id": "Queue #",
+    "reason": "Why flagged",
+    "status": "Status",
+    "reviewer": "Reviewer",
+    "decided_tier": "Reviewer's tier",
+    "notes": "Reviewer's notes",
+}
+REASON_LABELS = {
+    "critical_miss": "Critical miss",
+    "disagreement": "Disagreement",
+    "ambiguous_gold_label": "Flagged as ambiguous",
+}
+STATUS_LABELS = {
+    "pending": "Pending",
+    "auto_resolved": "Auto-resolved (reviewers agreed)",
+    "escalated": "Escalated (reviewers disagreed)",
+}
+REVIEWER_LABELS = {
+    "reviewer_strict_rubric": "Reviewer A (strict rubric)",
+    "reviewer_err_cautious": "Reviewer B (errs cautious)",
+}
+
+
+def display(df):
+    """Rename columns to plain labels for on-screen display."""
+    return df.rename(columns=COLUMN_LABELS)
+
 st.set_page_config(page_title="AI Safety Eval Dashboard", layout="wide")
 st.title("AI Safety Evaluation — Dashboard")
 st.caption(
@@ -92,7 +130,7 @@ if len(critical_misses):
         f"{len(critical_misses)} critical miss(es) — imminent-risk cases scored below tier 3."
     )
     st.dataframe(
-        critical_misses[["id", "text", "gold_tier", "predicted_tier", "rationale"]],
+        display(critical_misses[["id", "text", "gold_tier", "predicted_tier", "rationale"]]),
         hide_index=True,
     )
 
@@ -196,13 +234,17 @@ queue = pd.read_sql(
 if queue.empty:
     st.caption("Nothing in the review queue for this run.")
 else:
+    queue["reason"] = queue["reason"].map(REASON_LABELS).fillna(queue["reason"])
+    queue["status"] = queue["status"].map(STATUS_LABELS).fillna(queue["status"])
     status_filter = st.multiselect(
         "Filter by status",
         sorted(queue["status"].unique()),
         default=list(queue["status"].unique()),
     )
     st.dataframe(
-        queue[queue["status"].isin(status_filter)], hide_index=True, use_container_width=True
+        display(queue[queue["status"].isin(status_filter)]),
+        hide_index=True,
+        use_container_width=True,
     )
 
 decisions = pd.read_sql(
@@ -217,6 +259,7 @@ decisions = pd.read_sql(
 )
 if not decisions.empty:
     st.subheader("QA reviewer decisions")
-    st.dataframe(decisions, hide_index=True, use_container_width=True)
+    decisions["reviewer"] = decisions["reviewer"].map(REVIEWER_LABELS).fillna(decisions["reviewer"])
+    st.dataframe(display(decisions), hide_index=True, use_container_width=True)
 
 conn.close()
