@@ -2,6 +2,60 @@
 
 ![CI](https://github.com/VarunSUK/AI-Safety-SelfHarm/actions/workflows/ci.yml/badge.svg)
 
+## What is this, in plain English?
+
+Imagine an AI chatbot that talks to real people all day. Every so often,
+someone says something that's actually a warning sign — maybe they hint
+they want to hurt themselves, or they ask the AI to help with something
+dangerous. The AI needs to catch that, take it seriously, and respond the
+right way — while *not* overreacting to things that only sound alarming
+(a joke, a school essay about a sad book, a line from a song).
+
+This project is a system I built to test how well an AI does that job, and
+to catch it when it gets something wrong — before real people are affected.
+
+It covers two different situations:
+
+1. **Someone may be in crisis.** Does the AI notice when a message is a
+   genuine warning sign, and respond with the right level of care and the
+   right resources — without either brushing off something serious or
+   overreacting to something harmless?
+2. **Someone is asking for something dangerous.** Does the AI correctly say
+   no — even if the request is dressed up as fiction, a "hypothetical," or
+   a claim like "I'm a professional, this is for research"?
+
+Here's the process I built, step by step, in plain terms:
+
+1. **Write the rulebook.** Clear, written rules for what counts as low,
+   medium, or high risk in each situation — including the tricky exceptions
+   that trip up a naive filter (sarcasm, quoting a song, "for a class
+   assignment," a story with a fictional wrapper around a real request).
+2. **Build the test.** Dozens of realistic example messages, hand-written
+   to specifically include those tricky cases, each one labeled with the
+   answer a careful human reviewer would give.
+3. **Run the AI against it.** The AI reads every example and gives its own
+   answer.
+4. **Grade it, with the right priorities.** The AI's answers are checked
+   against the correct ones — and any case where the AI **missed something
+   truly dangerous** is flagged as the single most important kind of
+   mistake, ahead of every other error. Getting a low-stakes case wrong is
+   a minor issue; missing a high-stakes one is not.
+5. **Double-check the hard calls.** Anything the AI got wrong, or anything
+   genuinely ambiguous, gets a second, independent look — the same way a
+   real review team wouldn't rely on just one person's judgment for a
+   high-stakes decision.
+6. **See it all on one screen.** A simple dashboard shows the results in
+   plain terms — how often the AI got it right, where it struggled, and
+   what still needs a human to look at it.
+
+The goal isn't just one test for one problem — it's a repeatable *process*
+for testing AI safety that could be pointed at a new kind of risk, run
+again every time the AI changes, and handed off to a team to operate.
+
+---
+
+## The technical version
+
 A small, complete evaluation harness for AI safety classifiers, covering
 **two eval suites** on one shared harness: self-harm/crisis risk, and
 harmful-instructions/dangerous-capability refusal. Each suite has a policy
